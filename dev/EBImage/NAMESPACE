@@ -1,0 +1,68 @@
+useDynLib(EBImage)
+
+importFrom("methods", "Ops")
+importFrom("methods", "show")
+importFrom("graphics", "image")
+importFrom("graphics", "hist")
+importFrom("stats", "median")
+
+## classes
+exportClasses(Image)
+
+## image class, accessors
+export(Image, is.Image, as.Image, print.Image, as.raster.Image)
+export(Grayscale, TrueColor, Color)
+exportMethods(Ops, "[")
+export(colorMode, "colorMode<-", imageData, "imageData<-")
+export(getFrame, getNumberOfFrames)
+
+## image IO, display
+exportMethods('show')
+export(readImage, writeImage, display, animate)
+
+## spatial transform
+export(resize, rotate)
+export(flip, flop)
+export(translate)
+
+## image segmentation, objects manipulation
+export(thresh, bwlabel)
+export(watershed,watergrow, propagate)
+export(ocontour)
+export(paintObjects, rmObjects, reenumerate, separate)
+
+## statistics
+export(median.Image, quantile.Image)
+exportMethods(hist)
+
+## image enhancement, filtering
+export(normalize)
+export(filter2)
+export(blur, gblur)
+export(minFilter,maxFilter,meanFilter,medianFilter,gradientFilter,modeFilter,stdFilter,nonpeakFilter)
+export(equalize)
+        
+## morphological operations
+export(makeBrush)
+export(erode, dilate, opening, closing)
+export(distmap)
+export(floodFill, fillHull)
+
+## colorspace
+export(rgbImage, channel)
+
+## image stacking, tiling
+export(stackObjects)
+export(combine, tile, untile)
+
+## drawables
+export(drawfont, drawtext, colorize,drawPolyline)
+export(drawCircle, imageConvolve, imageReplace)
+
+## features extraction
+export(getFeatures, hullFeatures, edgeProfile, edgeFeatures)
+export(moments, cmoments, meanvar, smoments, rmoments)
+export(haralickMatrix, haralickFeatures, zernikeMoments)
+
+## deprecated
+
