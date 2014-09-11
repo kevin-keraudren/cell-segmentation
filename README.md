@@ -25,12 +25,11 @@ install for R and its dependencies would be a safer long-term solution.
 REFERENCES
 ----------
 
-Keraudren, K., Spitaler, M., Braga, V. M., Rueckert, D., & Pizarro,
-  L.: <i>Segmenting Epithelial Cells in High-Throughput RNAi Screens</i>, MIAAB
-  2011.               
-    <a href="http://www.doc.ic.ac.uk/~kpk09/publications/MIAAB-2011.pdf">PDF</a>
-    <a href="http://www.doc.ic.ac.uk/~kpk09/cell_segmentation_tool.zip">code</a> 
-    <a href="http://www.doc.ic.ac.uk/~kpk09/publications/MIAAB-2011_slides.pdf">slides</a>
+Keraudren, K., Spitaler, M., Braga, V. M., Rueckert, D., & Pizarro, L.:
+<i>Segmenting Epithelial Cells in High-Throughput RNAi Screens</i>, MIAAB 2011.               
+<a href="http://www.doc.ic.ac.uk/~kpk09/publications/MIAAB-2011.pdf">PDF</a>
+<a href="http://www.doc.ic.ac.uk/~kpk09/cell_segmentation_tool.zip">code</a> 
+<a href="http://www.doc.ic.ac.uk/~kpk09/publications/MIAAB-2011_slides.pdf">slides</a>
 
     
 
