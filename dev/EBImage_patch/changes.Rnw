@@ -1,0 +1,435 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[left=2.5cm,right=2cm,top=2cm,bottom=2cm]{geometry}
+
+\title{ Proposed modification for EBImage 3.10}
+\author{Keraudren Kevin\\ \url{kevin.keraudren10@imperial.ac.uk}}
+\date{January 2012}
+
+%%\usepackage[round]{natbib}
+%%\usepackage{Rd}
+\usepackage{graphicx}
+
+%% for printing in black&white
+%\usepackage[monochrome]{color}
+\usepackage{color}
+
+\usepackage{subfig}
+\usepackage{mathtools}
+
+\usepackage[
+  colorlinks = true,% color hyperlinksadditonal_options.png
+  urlcolor = blue,  % which color to use
+]{hyperref}
+
+\usepackage{listings}
+\definecolor{keywords}{RGB}{255,0,90}
+\definecolor{comments}{RGB}{60,179,113}
+\lstset{language=R,
+keywordstyle=\color{keywords},
+commentstyle=\color{comments}\emph,
+basicstyle=\small\tt}
+
+% from EBImage-Introduction.Rnw
+\newcommand{\lib}[1]{{\mbox{\normalfont\textsf{#1}}}}
+\newcommand{\file}[1]{{\mbox{\normalfont\textsf{'#1'}}}}
+\newcommand{\R}{{\mbox{\normalfont\textsf{R}}}}
+\newcommand{\Rfunction}[1]{{\mbox{\normalfont\texttt{#1}}}}
+\newcommand{\Robject}[1]{{\mbox{\normalfont\texttt{#1}}}}
+\newcommand{\Rpackage}[1]{{\mbox{\normalfont\textsf{#1}}}}
+\newcommand{\Rclass}[1]{{\mbox{\normalfont\textit{#1}}}}
+\newcommand{\code}[1]{{\mbox{\normalfont\texttt{#1}}}}
+
+\definecolor{specialblue}{RGB}{51,51,179}
+
+\usepackage{Sweave}
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize,fontshape=n,formatcom=\color{specialblue},xleftmargin=2em
+}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\footnotesize,fontshape=n,formatcom=\color{specialblue},xleftmargin=2em
+}
+\DefineVerbatimEnvironment{Scode}{Verbatim}{fontsize=\footnotesize,fontshape=n,formatcom=\color{specialblue},xleftmargin=2em
+}
+%\fvset{listparameters={\setlength{\topsep}{0pt}}}
+%\renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}} 
+\renewenvironment{Schunk}{}{} 
+
+\begin{document}
+
+<<echo=FALSE>>=
+options(width = 98,continue=' ') 
+
+library('EBImage')
+
+@ 
+
+\maketitle
+%\newpage
+
+\tableofcontents
+%\newpage
+
+\section{Bugs}
+\subsection{Disallowing even sizes for kernels in \Rfunction{makeBrush}}
+
+The \Rfunction{makeBrush} currently allows odd and even size kernels. Dilation with
+\emph{disc} of even size creates artifacts. Thus, even sizes should not be allowed.
+
+\begin{minipage}{0.7\textwidth}
+<<eval=FALSE>>=
+x = readImage(system.file("images", "shapes.png", package="EBImage"))
+x = x[376:486,146:236]
+
+kern = makeBrush(11, shape='disc')
+display(dilate(x, kern), title='Dilation of x')
+
+kern = makeBrush(12, shape='disc')
+display(dilate(x, kern), title='Dilation of x')
+@
+\end{minipage}
+\begin{minipage}{0.3\textwidth}
+%writeImage( dilate(x, makeBrush(12, shape='disc')), "even_size_kernel.png", quality=100)
+%writeImage( dilate(x, makeBrush(11, shape='disc')), "odd_size_kernel.png", quality=100)
+  \begin{center}
+\includegraphics[width=0.5\textwidth]{img/odd_size_kernel.png}
+
+\includegraphics[width=0.5\textwidth]{img/even_size_kernel.png}
+
+Dilation with an odd and even size kernel.
+\end{center}
+\end{minipage}
+
+{ \bf Proposed fix} in \url{EBImage/R/morphology.R}:
+{ \small
+\begin{verbatim}
+if ( (size %% 2) != 1) stop("'size' must be an odd number")
+\end{verbatim}
+}
+
+\subsection{Connected objects wrongly merged by \Rfunction{bwlabel}}
+
+The function \Rfunction{bwlabel} currently merges parts which are not separated
+by 0 regions. This is infortunate when we split an object and whish to label
+separately each parts, without merging them with adjacent objects.
+The function \Rfunction{colorize} used below is presented in Section \ref{sec:colorize}.
+
+\begin{minipage}{0.5\textwidth}
+<<eval=FALSE>>=
+img = Image(dim=c(100,100))
+img[20:80,20:80] = 1
+img[30:70,40:60] = 2
+
+img[49:51,] = 0
+display(colorize(img))
+display(colorize(bwlabel(img)))
+@
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+%writeImage(colorize(img), "bug_bwlabel1.png", quality=100)
+%writeImage(colorize(bwlabel(img)), "bug_bwlabel2.png", quality=100)
+%writeImage(colorize(bwlabel(img)), "bug_bwlabel3.png", quality=100)
+  \centering
+  \includegraphics[width=0.25\textwidth]{img/bug_bwlabel1.png}
+  \includegraphics[width=0.25\textwidth]{img/bug_bwlabel2.png}
+  
+  \includegraphics[width=0.25\textwidth]{img/bug_bwlabel3.png}
+  
+  { \small Top-left image is the input, top-right image is the wrong output of \Rfunction{bwlabel},\\
+  bottom image is the correct output of \Rfunction{bwlabel}. }
+\end{minipage}
+
+{ \bf Proposed fix} in \url{EBImage/src/floodFill.cpp}:
+{ \small
+\begin{verbatim}
+// assuming binary images: 0 is background and everything else foreground
+// foreground is negated
+for (i=0; i<nz*size.x*size.y; i++) {
+  if (REAL(res)[i]!=0.0) REAL(res)[i]*=-1;
+}
+...
+if (REAL(res)[kx + ky*size.x + i*size.x*size.y] < 0) {
+\end{verbatim}
+}
+
+{ \bf Note:} the old behaviour can be reproduced using
+<<eval=FALSE>>=
+bwlabel(img>0)
+@ 
+
+\section{Code optimization}
+\subsection{\emph{<deque>} instead of \emph{<list>} in \Rfunction{watershed}}
+From \url{http://www.cplusplus.com/reference/stl/deque/}:
+\begin{center}
+\emph{``For operations that involve frequent insertion or removals of elements at positions other than the beginning or the end, deques perform worse and have less consistent iterators and references than lists.''}
+\end{center}
+
+The current code for \Rfunction{watershed} uses \emph{<list>} although elements are
+inserted or removed only at the ends. Using \emph{<deque>} would be more efficient.\\
+
+\begin{minipage}{0.7\textwidth}
+<<eval=FALSE>>=
+x = readImage(system.file('images', 'shapes.png', package='EBImage'))
+x = resize(x, 1000,1000)
+y = distmap(x)
+system.time(watershed(y))
+@
+\end{minipage}
+\begin{minipage}{0.3\textwidth}
+   User time:\\
+\begin{tabular}{ |c|c| }
+  \hline
+  \emph{<list>} & \emph{<deque>}  \\
+  \hline
+  $60.06 \: s$ & $2.610 \: s$  \\
+  \hline
+\end{tabular}
+   \end{minipage}
+
+{ \bf Proposed fix} in \url{EBImage/src/watershed.cpp}:
+{ \small
+\begin{verbatim}
+/* deque of STL, C++ */
+#include <deque>
+...
+typedef std::deque<int>     IntList;
+typedef std::deque<TheSeed> SeedList;
+\end{verbatim}
+}
+
+\subsection{\emph{for} loops instead of FFT for 2D convolution}
+
+For 2D convolution, simple \emph{for} loops, which is what is being done in the
+\Rpackage{biOps} package, are faster than the FFT.
+
+\begin{minipage}{0.7\textwidth}
+<<>>=
+sobel_filter2 = function( img ) {
+  data = c(1,0,-1,2,0,-2,1,0,-1)
+  kernelX = matrix(data, 3, 3, byrow = TRUE)
+  kernelY = matrix(data, 3, 3, byrow = FALSE)
+  x = filter2(img, kernelX)
+  y = filter2(img, kernelY)
+  return( sqrt(x^2 + y^2) )
+}
+
+sobel_imageConvolve = function( img ) {
+  data = c(1,0,-1,2,0,-2,1,0,-1)
+  kernelX = matrix(data, 3, 3, byrow = TRUE)
+  kernelY = matrix(data, 3, 3, byrow = FALSE)
+  x = imageConvolve(img, kernelX)
+  y = imageConvolve(img, kernelY)
+  return( sqrt(x^2 + y^2) )
+}
+
+x = readImage(system.file('images', 'lena.gif', package='EBImage'))
+x = resize(x, 1000,1000)
+system.time(sobel_filter2(x))
+system.time(sobel_imageConvolve(x))
+@ 
+
+<<echo=FALSE>>=
+x = readImage(system.file('images', 'lena.gif', package='EBImage'))
+writeImage(sobel_filter2(x),'img/sobel_filter2.png')
+writeImage(sobel_imageConvolve(x),'img/sobel_imageConvolve.png')
+@ 
+\end{minipage}
+\begin{minipage}{0.3\textwidth}
+\centering
+\includegraphics[width=0.8\textwidth]{img/sobel_filter2.png}
+
+\includegraphics[width=0.8\textwidth]{img/sobel_imageConvolve.png}
+
+Output of \Rfunction{sobel\_filter2} and \Rfunction{sobel\_imageConvolve}.
+\end{minipage}
+
+{ \bf Proposed fix:} see in \url{EBImage/src/drawable.c}:
+
+\section{Additions}
+\subsection{\Rfunction{separate}}
+
+Function to disconnect touching objects.
+
+<<>>=
+x = readImage(system.file('images', 'shapes.png', package='EBImage'))
+x = x[110:512,1:130]
+if (interactive()) display(x, title='Binary')
+y = distmap(x)
+if (interactive()) display(normalize(y), title='Distance map')
+w = watershed(y)
+if (interactive()) display(normalize(w), title='Watershed')
+z = separate(w)
+if (interactive()) display(normalize(z), title='Separate')
+@ 
+<<echo=FALSE>>=
+writeImage(normalize(w),'img/before_separate.png')
+writeImage(normalize(z),'img/separate.png')
+@ 
+
+\begin{center}
+  \includegraphics[width=0.3\textwidth]{img/before_separate.png}
+  \includegraphics[width=0.3\textwidth]{img/separate.png}
+  \end{center}
+
+See code in \url{EBImage/src/objects.c}
+
+\subsection{Grayscale morphological operations}
+
+<<>>=
+x = readImage(system.file("images", "lena.gif", package="EBImage"))
+if (interactive()) display(x, title='Lena')
+# Sobel filter for edge detection
+sobel = function( img ) {
+data = c(1,0,-1,2,0,-2,1,0,-1)
+kernelX = matrix(data, 3, 3, byrow = TRUE)
+kernelY = matrix(data, 3, 3, byrow = FALSE)
+x = imageConvolve(img, kernelX)
+y = imageConvolve(img, kernelY)
+return( sqrt(x^2 + y^2) )
+}
+y = sobel(x)
+y2 = closing(y,kern=makeBrush(5, shape='disc'),binary=FALSE)
+if (interactive()) display(y, title='Sobel lena')
+if (interactive()) display(y2, title='Closed Sobel lena')
+@ 
+<<echo=FALSE>>=
+writeImage(y,'img/sobel_lena.png')
+writeImage(y2,'img/closed_sobel_lena.png')
+@ 
+
+\begin{center}
+  \includegraphics[width=0.3\textwidth]{img/sobel_lena.png}
+  \includegraphics[width=0.3\textwidth]{img/closed_sobel_lena.png}
+  \end{center}
+
+See code in \url{EBImage/src/morphology.c}
+
+\subsection{\Rfunction{drawPolyline}}
+
+<<>>=
+img = readImage(system.file("images", "shapes.png", package="EBImage"))
+img = img[110:512,1:130]
+labels = bwlabel(img)
+oc = ocontour(labels)
+poly = list()
+for ( i in 1:max(labels) ) {
+x = filter(oc[[i]][,1],rep(1,21)/21,method='convolution',circular=TRUE)
+y = filter(oc[[i]][,2],rep(1,21)/21,method='convolution',circular=TRUE)
+p = cbind(x,y)
+p = rbind(p,p[1,])
+poly[[i]] = p
+}
+output = rgbImage(red=img,green=img,blue=img)
+output = drawPolyline(output,poly,stroke.color='red')
+if (interactive()) display(output)
+@ 
+<<echo=FALSE>>=
+writeImage(output, 'img/drawPolyline.png')
+@ 
+
+  \begin{center}
+  \includegraphics[width=0.5\textwidth]{img/drawPolyline.png}
+  \end{center}
+  
+See code in \url{EBImage/src/drawable.c}
+
+\subsection{External contours in \Rfunction{ocontour}}
+
+\begin{minipage}{0.7\textwidth}
+<<>>=
+x = readImage(system.file("images", "shapes.png", package="EBImage"))
+x = x[1:120,50:120]
+oc = ocontour(x)
+plot(oc[[1]], type='l')
+points(oc[[1]], col='red')
+oc2 = ocontour(x,external=TRUE)
+lines(oc2[[1]])
+points(oc2[[1]], col='green')
+@ 
+\end{minipage}
+\begin{minipage}{0.3\linewidth}
+% http://book-by-sweave.wikidot.com/
+\setkeys{Gin}{width=\textwidth}
+
+  \centering
+<<echo=FALSE,fig=TRUE>>=
+x = readImage(system.file("images", "shapes.png", package="EBImage"))
+x = x[1:120,50:120]
+oc = ocontour(x)
+plot(oc[[1]], type='l')
+points(oc[[1]], col='red')
+oc2 = ocontour(x,external=TRUE)
+lines(oc2[[1]])
+points(oc2[[1]], col='green')
+@
+\end{minipage}
+
+See code in \url{EBImage/src/ocontour.c}
+
+\subsection{ImageMagick filters}
+
+These are not really useful functions, but can be nice when experimenting with
+Image Processing.
+
+<<>>=
+x = readImage(system.file("images", "lena.gif", package="EBImage"))
+if (interactive()) display(x)
+y = minFilter(x)
+if (interactive()) display(y, title='minFilter')
+y = maxFilter(x)
+if (interactive()) display(y, title='maxFilter')
+y = meanFilter(x)
+if (interactive()) display(y, title='meanFilter')
+y = medianFilter(x)
+if (interactive()) display(y, title='medianFilter')
+y = gradientFilter(x)
+if (interactive()) display(y, title='gradientFilter')
+y = nonpeakFilter(x)
+if (interactive()) display(y, title='nonpeakFilter')
+y = stdFilter(x)
+if (interactive()) display(y, title='stdFilter')
+y = modeFilter(x)
+if (interactive()) display(y, title='modeFilter')
+@ 
+<<echo=FALSE>>=
+writeImage( minFilter(x), 'img/minFilter.png')
+writeImage( maxFilter(x), 'img/maxFilter.png')
+writeImage( meanFilter(x), 'img/meanFilter.png')
+writeImage( medianFilter(x), 'img/medianFilter.png')
+writeImage( gradientFilter(x), 'img/gradientFilter.png')
+writeImage( nonpeakFilter(x), 'img/nonpeakFilter.png')
+writeImage( stdFilter(x), 'img/stdFilter.png')
+writeImage( modeFilter(x), 'img/modeFilter.png')
+@ 
+
+\begin{center}
+  \includegraphics[width=0.2\textwidth]{img/minFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/maxFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/meanFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/medianFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/gradientFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/nonpeakFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/stdFilter.png}
+  \includegraphics[width=0.2\textwidth]{img/modeFilter.png}
+  
+  min, max, mean, median, gradient, nonpeak, std and mode filters.
+  \end{center}
+
+See code in \url{EBImage/src/filters_magick.c}
+
+\subsection{\Rfunction{imageReplace} \& \Rfunction{colorize}}
+\label{sec:colorize}
+
+<<>>=
+x = readImage(system.file("images", "lena.gif", package="EBImage"))
+if (interactive()) display(colorize(x))
+@ 
+<<echo=FALSE>>=
+writeImage( colorize(x), 'img/colorize.png')
+@ 
+
+\begin{center}
+  \includegraphics[width=0.3\textwidth]{img/colorize.png}
+\end{center}
+\end{document}
+
+See code in \url{EBImage/src/drawable.c}
+

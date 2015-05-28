@@ -1,0 +1,1596 @@
+Index: EBImage/R/drawable.R
+===================================================================
+--- EBImage/R/drawable.R	(révision 1)
++++ EBImage/R/drawable.R	(copie de travail)
+@@ -77,3 +77,58 @@
+   
+   invisible(.Call("drawCircle", castImage(img), xyzr, rgb, fill, PACKAGE='EBImage'))
+ }
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++drawPolyline = function(img, xy, stroke.color="white",stroke.width=1,fill.color="none",antialias=FALSE) {   
++  validImage(img)
++  
++  if (is.numeric(xy)) {
++    xy=list(as.numeric(xy))
++  }
++
++  # FIXME: the farfetched code below does:
++  # - substract 1 to coordinates to translate from R coordinates to C
++  # coordinates
++  # - returns everything 'as.numeric'
++  # - keeping the structure of a list of lists...
++  for (i in 1:length(xy)) {
++    xy[[i]] <- do.call('rbind', lapply(1:dim(xy[[i]])[1], function(j){
++     rbind(as.numeric(xy[[i]][j,1] - 1),as.numeric(xy[[i]][j,2] - 1) )
++ }))
++  }
++
++  return(.Call("lib_drawPolyline", castImage(img), xy,
++               stroke.color, stroke.width, fill.color, as.integer(antialias), PACKAGE='EBImage'))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++imageReplace = function(x,colors, do.zero=FALSE) {
++
++  if ( max(x) > length(colors)) stop("not enough colors")
++
++  .Call("imageReplace", castImage(x), as.numeric(colors), as.integer(do.zero), PACKAGE='EBImage')
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++colorize = function(img,colormap="jet") {
++  if ( ! is.character(colormap)) stop("colormap must be a 'character'")
++
++  d = dim(img)
++  
++  if (colormap == "jet") {
++    jet.colors <-
++      colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan",
++                         "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
++    palette = jet.colors(256)
++  }
++  else if (colormap == "rainbow") {
++    palette = rainbow(256)
++  }
++  else stop("Unknown colormap")
++
++  datac = col2rgb(palette)/255
++  img = normalize(img)*255
++  rgbImage(imageReplace(img, datac[1,]),
++           imageReplace(img, datac[2,]),
++           imageReplace(img, datac[3,]) )
++}
+Index: EBImage/R/objects.R
+===================================================================
+--- EBImage/R/objects.R	(révision 1)
++++ EBImage/R/objects.R	(copie de travail)
+@@ -86,3 +86,9 @@
+   
+   x
+ }
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++separate = function(x,kern=makeBrush(5, shape='diamond')) {
++  validImage(x)
++  return (.Call ("separate", castImage(x),kern, PACKAGE='EBImage') )
++}
+Index: EBImage/R/magick.R
+===================================================================
+--- EBImage/R/magick.R	(révision 1)
++++ EBImage/R/magick.R	(copie de travail)
+@@ -22,6 +22,14 @@
+ flt.equalize  <- as.integer(7)
+ flt.resize    <- as.integer(11)
+ flt.rotate    <- as.integer(12)
++flt.min <- as.integer(15)
++flt.max <- as.integer(16)
++flt.mean <- as.integer(17)
++flt.median <- as.integer(18)
++flt.gradient <- as.integer(19)
++flt.mode <- as.integer(20)
++flt.nonpeak <- as.integer(21)
++flt.std <- as.integer(22)
+ 
+ ## Normalize to [0;1] if needed and go back to the original scale since ImageMagick assumes that image values are within [0;1]
+ # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+@@ -89,3 +97,43 @@
+ }
+ 
+ 
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++minFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.min, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++maxFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.max, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++meanFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.median, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++medianFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.median, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++gradientFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.gradient, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++modeFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.mode, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++nonpeakFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.nonpeak, as.numeric(c(w,h))))
++}
++
++## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++stdFilter = function (x,w=3,h=3) {    
++  return(ImageMagickCall(x, flt.std, as.numeric(c(w,h))))
++}
++
+Index: EBImage/R/morphology.R
+===================================================================
+--- EBImage/R/morphology.R	(révision 1)
++++ EBImage/R/morphology.R	(copie de travail)
+@@ -15,6 +15,8 @@
+ makeBrush = function(size, shape=c('box', 'disc', 'diamond', 'gaussian'), step=TRUE, sigma=0.3) {
+   if(! (is.numeric(size) && (length(size)==1L) && (size>=1)) ) stop("'size' must be a numeric of length 1 with value >=1.")
+   shape=match.arg(shape)
++
++  if ( (size %% 2) != 1) stop("'size' must be an odd number")
+   
+   if (shape=='box') z = array(1,dim=c(size,size))
+   else if (shape=='gaussian') {
+@@ -44,22 +46,22 @@
+   z
+ }
+ 
+-erode = function (x, kern=makeBrush(5, shape='diamond')) {
++erode = function (x, kern=makeBrush(5, shape='diamond'), binary=TRUE) {
+   validImage(x)
+-  return (.Call("lib_erode_dilate", castImage(x), kern, as.integer(0), PACKAGE='EBImage') )
++  return (.Call("lib_erode_dilate", castImage(x), kern, as.integer(0), as.integer(binary), PACKAGE='EBImage') )
+ }
+ 
+-dilate = function (x, kern=makeBrush(5, shape='diamond')) {
++dilate = function (x, kern=makeBrush(5, shape='diamond'), binary=TRUE) {
+   validImage(x)
+-  return (.Call("lib_erode_dilate", castImage(x), kern, as.integer(1), PACKAGE='EBImage') )
++  return (.Call("lib_erode_dilate", castImage(x), kern, as.integer(1), as.integer(binary), PACKAGE='EBImage') )
+ }
+ 
+-opening = function (x, kern=makeBrush(5, shape='diamond')) {
++opening = function (x, kern=makeBrush(5, shape='diamond'), binary=TRUE) {
+   validImage(x)
+-  dilate(erode(x, kern), kern)
++  dilate(erode(x, kern, binary=binary), kern, binary=binary)
+ }
+ 
+-closing = function (x, kern=makeBrush(5, shape='diamond')) {
++closing = function (x, kern=makeBrush(5, shape='diamond'), binary=TRUE) {
+   validImage(x)
+-  erode(dilate(x, kern), kern)
++  erode(dilate(x, kern, binary=binary), kern, binary=binary)
+ }
+Index: EBImage/R/segment.R
+===================================================================
+--- EBImage/R/segment.R	(révision 1)
++++ EBImage/R/segment.R	(copie de travail)
+@@ -43,10 +43,10 @@
+ }
+ 
+ ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+-ocontour = function(x) {
++ocontour = function(x, external=FALSE) {
+   validImage(x)
+   storage.mode(x)='integer'
+-  y = .Call('ocontour', x, PACKAGE='EBImage')[-1]
++  y = .Call('ocontour', x, as.integer(external), PACKAGE='EBImage')[-1]
+   y = lapply(y, function(z) matrix(z, nc=2, byrow=TRUE))
+   names(y) = 1:length(y)
+   y[sapply(y, nrow)>0]
+Index: EBImage/R/filter2.R
+===================================================================
+--- EBImage/R/filter2.R	(révision 1)
++++ EBImage/R/filter2.R	(copie de travail)
+@@ -52,5 +52,8 @@
+   else return(y)
+ }
+ 
++imageConvolve = function(x, filter) {
++  validImage(x) 
++  return (.Call("imageConvolve", castImage(x), filter, PACKAGE='EBImage') )
++}
+ 
+-
+Index: EBImage/src/drawable.c
+===================================================================
+--- EBImage/src/drawable.c	(révision 1)
++++ EBImage/src/drawable.c	(copie de travail)
+@@ -197,3 +197,180 @@
+   UNPROTECT (nprotect);
+   return _res;
+ }
++
++// taken from biOps package
++SEXP
++imageConvolve (SEXP obj, SEXP _kern) {
++    SEXP res;
++    int x, y, z, i, j, nx,ny,nz,kx,ky,kcx,kcy,xx,yy;
++    double * src, *tgt, *kernel, value;
++
++    validImage(obj,0);
++
++    nx = INTEGER ( GET_DIM(obj) )[0];
++    ny = INTEGER ( GET_DIM(obj) )[1];
++    nz = getNumberOfFrames(obj,0);
++
++    kernel = REAL (_kern);
++    kx = INTEGER ( GET_DIM(_kern) )[0];
++    ky = INTEGER ( GET_DIM(_kern) )[1];
++
++    kcx = kx / 2;
++    kcy = ky / 2;
++
++    int nprotect = 0;
++
++    PROTECT ( res = Rf_duplicate(obj) );
++    nprotect++;
++
++    for ( z = 0; z < nz; z++ ) {
++        tgt = &( REAL(res)[z * nx * ny] );
++        src = &( REAL(obj)[z * nx * ny] );
++
++        for (x = 0; x < nx; x++){
++            for (y = 0; y < ny; y++){
++                value = 0;
++                for (i = -kcx; i <= kcx; i++){
++                    for (j = -kcy; j <= kcy; j++){
++                        xx = x + i;
++                        yy = y + j;
++                        if ( xx < 0 || yy < 0 || xx >= nx || yy >= ny )continue;
++                        value += src[ xx + yy*nx] * kernel[ (i + kcx) + (j + kcy) * kx];
++                    }
++                }
++                tgt[x + y*nx] = value;
++            }
++        }
++    }
++    UNPROTECT (nprotect);    
++    return res;
++}
++
++SEXP
++imageReplace (SEXP obj, SEXP _colors, SEXP _do_zero) {
++    SEXP res;
++    int z, j, nx,ny,nz,do_zero;
++    double *tgt, *colors;
++    double *src;
++
++    validImage(obj,0);
++
++    nx = INTEGER ( GET_DIM(obj) )[0];
++    ny = INTEGER ( GET_DIM(obj) )[1];
++    nz = getNumberOfFrames(obj,0);
++
++    colors = REAL (_colors);
++    do_zero = INTEGER ( _do_zero)[0];
++
++    int nprotect = 0;
++
++    PROTECT ( res = Rf_duplicate(obj) );
++    nprotect++;
++
++    for ( z = 0; z < nz; z++ ) {
++        tgt = &( REAL(res)[z * nx * ny] );
++        src = &( REAL(obj)[z * nx * ny] );
++
++        if (do_zero) {
++            for (j=0; j< nx*ny; j++)
++                tgt[ j ] = colors[ (int)(src[j]) ];
++        }
++        else {
++            for (j=0; j< nx*ny; j++) {
++                if ( src[j] > 0 )
++                    tgt[ j ] = colors[ (int)(src[j]) - 1 ];
++            }
++        }
++
++    }
++    
++    UNPROTECT (nprotect);    
++    return res;
++}
++
++SEXP
++lib_drawPolyline (SEXP obj, SEXP xylist, SEXP stroke_color, SEXP stroke_width,
++                  SEXP fill_color, SEXP antialias ) {
++  SEXP res, xy, text;
++  int i, im, nz,nxy, mode, nval, nappended=0, nprotect=0, colcount=0,npoly,p;
++  DrawingWand * dwand;
++  MagickWand  * mwand;
++  PixelWand * pwand_stroke, * pwand_fill;
++  double * dxy;
++  Image * images, * image, * newimages;
++  const char * str;
++  
++  validImage(obj,0);
++
++  mode = getColorMode(obj);
++  images = sexp2Magick(obj);
++  nz = GetImageListLength(images);
++  npoly = LENGTH(xylist);
++
++  newimages = NewImageList();
++
++  /* create empty wand */
++  dwand = NewDrawingWand();
++  pwand_stroke = NewPixelWand();
++  pwand_fill = NewPixelWand();
++  /* loop through images */
++  for ( im = 0; im < nz; im++ ) {
++    /* create magick wand from one image, this does NOT copy */
++    mwand = NewMagickWandFromImage(GetFirstImageInList(images));
++    /* get pointers to current list elements if those are lists */
++    for (p=0;p<npoly;p++) {
++    xy = VECTOR_ELT(xylist, p);
++    nxy = LENGTH(xy) / 2;
++    dxy = REAL(xy);
++    /* nxy=INTEGER(GET_DIM(xylist))[0]; */
++    /* dxy = REAL(xylist); */
++      /* clear drawing wand */
++      ClearDrawingWand(dwand);
++
++      DrawSetStrokeAntialias(dwand, INTEGER(antialias)[0]);
++      DrawSetStrokeWidth(dwand,REAL(stroke_width)[0]);
++
++      PixelSetColor(pwand_stroke, CHAR(STRING_ELT(stroke_color, colcount)));
++      //PixelSetColor(pwand_fill, "none");
++      PixelSetColor(pwand_fill, CHAR(STRING_ELT(fill_color, colcount)));
++       
++      /* colcount++; */
++      /* if ( colcount >= LENGTH(thecol) ) colcount = 0; */
++      
++      DrawSetStrokeColor(dwand, pwand_stroke);
++      DrawSetFillColor(dwand, pwand_fill);
++      DrawPolyline(dwand, nxy, dxy );
++      /* draw the wand */
++      MagickDrawImage(mwand, dwand);
++    }
++
++    image = GetImageFromMagickWand(mwand);
++    AppendImageToList (&newimages, image);
++    if ( nappended == 0 ) {
++      /* copy attributes once and only if image contains more than 1 element */
++      nappended = 1;
++      newimages->compression = images->compression;
++      strcpy (newimages->filename, image->filename);
++      newimages->x_resolution = images->x_resolution;
++      newimages->y_resolution = images->y_resolution;
++    }
++    /* the image is destroyed below in DestroyImage 
++    mwand = DestroyMagickWand(mwand);
++    */
++    image = GetFirstImageInList(images);
++    RemoveFirstImageFromList(&images);
++    image = DestroyImage(image);
++  }
++  pwand_stroke = DestroyPixelWand(pwand_stroke);
++  pwand_fill = DestroyPixelWand(pwand_fill);
++  dwand = DestroyDrawingWand(dwand);
++  
++  images = DestroyImageList(images);
++
++  PROTECT( res = magick2SEXP(newimages, mode) );
++  nprotect++;
++  newimages = DestroyImageList(newimages);
++
++  UNPROTECT( nprotect );
++  return res;
++}
+Index: EBImage/src/drawable.h
+===================================================================
+--- EBImage/src/drawable.h	(révision 1)
++++ EBImage/src/drawable.h	(copie de travail)
+@@ -9,8 +9,11 @@
+ #endif
+   
+   SEXP lib_drawText (SEXP, SEXP, SEXP, SEXP, SEXP);
++    SEXP lib_drawPolyline (SEXP, SEXP, SEXP,SEXP, SEXP, SEXP);    
+   SEXP drawCircle (SEXP, SEXP, SEXP, SEXP);
+-  
++  SEXP imageConvolve (SEXP, SEXP);
++    SEXP imageReplace (SEXP, SEXP,SEXP);
++    
+ #ifdef __cplusplus
+ };
+ #endif
+Index: EBImage/src/objects.c
+===================================================================
+--- EBImage/src/objects.c	(révision 1)
++++ EBImage/src/objects.c	(copie de travail)
+@@ -272,3 +272,65 @@
+   UNPROTECT( nprotect );
+   return res;
+ }
++
++/*----------------------------------------------------------------------- */
++int
++is_junction (numeric * kernel, PointXY * ksize, numeric * data, PointXY * dsize,
++        PointXY * at) {
++    int i, j, xx, yy, kcx, kcy;
++
++    kcx = ksize->x / 2;
++    kcy = ksize->y / 2;
++    for ( i = -kcx; i <= kcx; i++ )
++        for ( j = -kcy; j <= kcy; j++ ) {
++            if ( kernel[ (i + kcx) + (j + kcy) * ksize->x ] == 0) continue;
++            xx = at->x + i;
++            yy = at->y + j;
++            if ( xx < 0 || yy < 0 || xx >= dsize->x || yy >= dsize->y ) continue;
++            if ( (data[xx + yy * dsize->x] != 0)
++                 && (data[xx + yy * dsize->x] != data[at->x + at->y * dsize->x])
++                 ) return 1;
++        }
++    return 0;
++}
++
++SEXP
++separate (SEXP x, SEXP kernel) {
++    numeric * tgt, * src, *kern;
++    int nz, i, j, nprotect;
++    int * dim;
++    PointXY size, ksize, pt;
++    SEXP res;
++
++    validImage(x,0);
++    validImage(kernel,0);
++
++    dim = INTEGER ( GET_DIM(x) );
++    size.x = dim[0];
++    size.y = dim[1];
++    nz = getNumberOfFrames(x,0);
++
++    kern = REAL (kernel);
++    ksize.x = INTEGER ( GET_DIM(kernel) )[0];
++    ksize.y = INTEGER ( GET_DIM(kernel) )[1];
++    nprotect = 0;
++
++    PROTECT ( res = Rf_duplicate(x) );
++    nprotect++;
++
++    for ( i = 0; i < nz; i++ ) {
++        tgt = &( REAL(res)[i * size.x * size.y] );
++        src = &( REAL(x)[i * size.x * size.y] );
++
++        for ( j = 0; j < size.x * size.y; j++ ) {
++            if (src[j] == 0)
++                continue;
++            pt = pointFromIndex (j, size.x);
++            if ( is_junction(kern, &ksize, src, &size, &pt) )
++                tgt[j] = 0;
++        }
++    }
++
++    UNPROTECT (nprotect);
++    return res;
++}
+Index: EBImage/src/objects.h
+===================================================================
+--- EBImage/src/objects.h	(révision 1)
++++ EBImage/src/objects.h	(copie de travail)
+@@ -11,6 +11,7 @@
+ SEXP paintObjects (SEXP, SEXP, SEXP, SEXP);
+ SEXP rmObjects (SEXP, SEXP);
+ SEXP stackObjects (SEXP, SEXP, SEXP, SEXP, SEXP);
++SEXP separate(SEXP,SEXP);
+ 
+ #ifdef __cplusplus
+ };
+Index: EBImage/src/morphology.c
+===================================================================
+--- EBImage/src/morphology.c	(révision 1)
++++ EBImage/src/morphology.c	(copie de travail)
+@@ -11,12 +11,17 @@
+ #define ERODE  0
+ #define DILATE 1
+ 
+-int _match (numeric * kernel, PointXY * ksize, numeric * data, PointXY * dsize, PointXY * at, numeric mismatch);
++int _match (numeric * kernel, PointXY * ksize, numeric * data, PointXY * dsize,
++            PointXY * at, numeric mismatch);
+ 
++numeric
++_greymatch (numeric * kernel, PointXY * ksize, numeric * data, PointXY * dsize,
++            PointXY * at, int what, numeric _min, numeric _max);
++
+ /*----------------------------------------------------------------------- */
+ SEXP
+-lib_erode_dilate (SEXP x, SEXP kernel, SEXP what) {
+-    numeric resetTo, * tgt, * src, *kern;
++lib_erode_dilate (SEXP x, SEXP kernel, SEXP what, SEXP binary) {
++    numeric resetTo, * tgt, * src, *kern, min, max;
+     int nz, i, j, nprotect;
+     int * dim;
+     PointXY size, ksize, pt;
+@@ -44,14 +49,31 @@
+     nprotect++;
+ 
+     for ( i = 0; i < nz; i++ ) {
+-      tgt = &( REAL(res)[i * size.x * size.y] );
+-      src = &( REAL(x)[i * size.x * size.y] );
+-      for ( j = 0; j < size.x * size.y; j++ ) {
+-	if ( tgt[j] == resetTo ) continue;
+-	pt = pointFromIndex (j, size.x);
+-	if ( !_match(kern, &ksize, src, &size, &pt, resetTo) )
+-	  tgt[j] = resetTo;
+-      }
++        tgt = &( REAL(res)[i * size.x * size.y] );
++        src = &( REAL(x)[i * size.x * size.y] );
++
++        if ( ! INTEGER(binary)[0] ) {
++            min = max = src[0];
++            for ( j = 0; j < size.x * size.y; j++ ) {
++                if (src[j] > max)
++                    max = src[j];
++                if (src[j] < min)
++                    min = src[j];
++            }
++            for ( j = 0; j < size.x * size.y; j++ ) {
++                pt = pointFromIndex (j, size.x);
++                tgt[j] = _greymatch(kern, &ksize, src, &size, &pt,
++                                    INTEGER(what)[0], min , max);
++            }
++        }
++        else {
++            for ( j = 0; j < size.x * size.y; j++ ) {
++                if ( tgt[j] == resetTo ) continue;
++                pt = pointFromIndex (j, size.x);
++                if ( !_match(kern, &ksize, src, &size, &pt, resetTo) )
++                    tgt[j] = resetTo;
++            }
++        }
+     }
+     
+     UNPROTECT (nprotect);
+@@ -77,3 +99,40 @@
+     return 1;
+ }
+ 
++/*----------------------------------------------------------------------- */
++numeric
++_greymatch (numeric * kernel, PointXY * ksize, numeric * data, PointXY * dsize,
++            PointXY * at, int what, numeric _min, numeric _max) {
++    int i, j, xx, yy, kcx, kcy;
++    numeric value;
++
++    numeric min = _max;
++    numeric max = _min;
++
++    kcx = ksize->x / 2;
++    kcy = ksize->y / 2;
++    for ( i = -kcx; i <= kcx; i++ )
++        for ( j = -kcy; j <= kcy; j++ ) {
++            if ( kernel[ (i + kcx) + (j + kcy) * ksize->x ] == 0) continue;
++            xx = at->x + i;
++            yy = at->y + j;
++            if ( xx < 0 || yy < 0 || xx >= dsize->x || yy >= dsize->y )continue;
++            if (what == ERODE) {
++                value = data[xx + yy * dsize->x] - kernel[ (i + kcx) + (j + kcy)
++    * ksize->x ];
++                if (value < min)
++                    min = value;
++            }
++            else {
++                value = data[xx + yy * dsize->x] + kernel[ (i + kcx) + (j + kcy)
++    * ksize->x ];
++                if (value > max)
++                    max = value;
++            }
++        }
++    if (what == ERODE)
++        return min;
++    else
++        return max;
++}
++
+Index: EBImage/src/morphology.h
+===================================================================
+--- EBImage/src/morphology.h	(révision 1)
++++ EBImage/src/morphology.h	(copie de travail)
+@@ -8,7 +8,7 @@
+ extern "C" {
+ #endif
+ 
+-SEXP lib_erode_dilate (SEXP, SEXP, SEXP);
++SEXP lib_erode_dilate (SEXP, SEXP, SEXP, SEXP);
+ 
+ #ifdef __cplusplus
+ };
+Index: EBImage/src/ocontour.c
+===================================================================
+--- EBImage/src/ocontour.c	(révision 1)
++++ EBImage/src/ocontour.c	(copie de travail)
+@@ -6,85 +6,191 @@
+ 
+ #define MAX_NB_POINTS 32768
+ 
+-static int rotr[8]={-1,-1,-1,0,1,1,1,0};
+-static int rotc[8]={-1,0,1,1,1,0,-1,-1};
++static int rotr[8]={-1,-1,-1, 0, 1, 1, 1, 0};
++static int rotc[8]={-1, 0, 1, 1, 1, 0,-1,-1};
+ static int dir [9]={5,4,3,6,-1,2,7,0,1};
+ 
+-SEXP ocontour(SEXP _image) {
+-  int *image, width, height;
+-  int i, j, k, direction, nbCells;
+-  int r, c, ocr, occ, ndirection, nr, nc;
+-  int nprotect=0, nboc,  *octemp;
+-  SEXP _res, _oc;
++/* dir */
++/*  0 */
++/* 3 1 */
++/*  2 */
++int on_right(int i,int j,int dir, int *data, int k, int nx) {
++    switch (dir) {
++    case 0: return data[i+1 + nx*j] == k; break;
++    case 1: return data[i+nx*(j+1)] == k; break;
++    case 2: return data[i-1+nx*j] == k; break;
++    case 3: return data[i+nx*(j-1)] == k; break;
++    }
++}
++int in_front(int i,int j,int dir, int *data, int k, int nx) {
++    switch (dir) {
++    case 0: return data[i + nx*(j-1)] == k; break;
++    case 1: return data[i+1+nx*j] == k; break;
++    case 2: return data[i+nx*(j+1)] == k; break;
++    case 3: return data[i-1+nx*j] == k; break;
++    }
++}
++
++SEXP ocontour(SEXP _image, SEXP _external) {
++    int *image, *padded_image = NULL;
++    int i, j, k, direction, nbCells, external;
++    int x,y , x0, y0, ndirection, x2,y2, nx,ny;
++    int nprotect=0, nboc,  *octemp,moved;
++    SEXP _res, _oc;
+   
+-  // Transfer variables
+-  height=INTEGER(GET_DIM(_image))[0];
+-  width=INTEGER(GET_DIM(_image))[1];
+-  image=INTEGER(_image);
++    // Transfer variables
++    nx=INTEGER(GET_DIM(_image))[0];
++    ny=INTEGER(GET_DIM(_image))[1];
++    image=INTEGER(_image);
++    external=INTEGER(_external)[0];
+   
+-  // Compute number of objects
+-  nbCells=0;
+-  for (i=0; i<width*height; i++) {
+-    if (image[i]>nbCells) nbCells=image[i];
+-  }
+-  nbCells++;
++    // Compute number of objects
++    nbCells=0;
++    for (i=0; i<nx*ny; i++) {
++        if (image[i]>nbCells) nbCells=image[i];
++    }
++    nbCells++;
++
++    if (external) {
++        nx +=2;
++        ny += 2;
++        padded_image =(int *)R_Calloc(nx*ny, int);
++        for ( i=0; i < nx; i++) {
++            for (j=0; j< ny; j++) {
++                if (i==0||j==0||i == nx -1||j==ny-1)
++                    padded_image[i+nx*j] = 0;
++                else
++                    padded_image[i+nx*j] = image[i-1+(nx-2)*(j-1)];
++            }
++        }
++        image = padded_image;
++    }
+  
+-  // Output result
+-  PROTECT(_res = allocVector(VECSXP, nbCells));
+-  nprotect++;
++    // Output result
++    PROTECT(_res = allocVector(VECSXP, nbCells));
++    nprotect++;
+ 
+-  // Temporary vector to store the current oriented contour
+-  octemp=(int *)R_Calloc(MAX_NB_POINTS*2, int);
++    // Temporary vector to store the current oriented contour
++    octemp=(int *)R_Calloc(MAX_NB_POINTS*2, int);
+ 
+-  // For each object, except the 0-th one (background)
+-  for (k=1; k<nbCells; k++) {
+-    nboc=0;
++    // For each object, except the 0-th one (background)
++    for (k=1; k<nbCells; k++) {
++        nboc=0;
+ 
+-    // Find min (r,c) starting point for object k
+-    i=0;
+-    while (image[i]!=k && i<width*height) i++;
+-    if (i!=width*height) {
+-      r=i%height;
+-      c=i/height;
++        // Find min (r,c) starting point for object k
++        i=0;
++        while (image[i]!=k && i<nx*ny) i++;
++        if (i!=nx*ny) {
++            x=i%nx;
++            y=i/nx;
+ 
+-      // Starting points of the oriented coutour
+-      ocr=r;
+-      occ=c;
++            // Starting points of the oriented contour
++            if (external) {
++                x0=x;
++                y0=y=y-1;
++                direction=1;
++            }
++            else {
++                x0=x;
++                y0=y;
++            }
+ 
+-      // Turn around the edges of the object
+-      direction=0;
+-      do {
+-	// Stores (r,c) in the oriented contour matrix
+-	octemp[2*nboc]=r;
+-	octemp[2*nboc+1]=c;
+-	if (nboc<MAX_NB_POINTS) nboc++;
++            // Turn around the edges of the object
++            if (! external)
++                direction=0;
++            do {
++                if (nboc % 1000)
++                    R_CheckUserInterrupt();
++                // Stores (r,c) in the oriented contour matrix
++                // R indices start from 1
++                if (external) {
++                    if ( x == 0 )
++                        octemp[2*nboc] = 1;
++                    else if (x == nx - 1)
++                        octemp[2*nboc] = nx -2;
++                    else
++                        octemp[2*nboc] = x;
++                    if (y == 0)
++                        octemp[2*nboc+1] = 1;
++                    else if (y== ny -1)
++                        octemp[2*nboc+1] = ny - 2;
++                    else
++                        octemp[2*nboc+1] = y;           
++                }
++                else {
++                    octemp[2*nboc] = x + 1;
++                    octemp[2*nboc+1] = y + 1;
++                }
++                if (nboc<MAX_NB_POINTS) nboc++;
+ 	
+-	// Change direction
+-	for (j=0; j<8; j++) {
+-	  ndirection=(j+direction)%8;
+-	  nr=r+rotr[ndirection];
+-	  nc=c+rotc[ndirection];
+-	  if (nr>=0 && nc>=0 && nr<height && nc<width) {
+-	    if (image[nr+nc*height]==k) break;
+-	  }
+-	}
+-	if (j!=8) {
+-	  direction=dir[(nr-r+1)+3*(nc-c+1)];
+-	  r=nr;
+-	  c=nc;
+-	}
+-      } while (r!=ocr || c!=occ);
+-    }
++                // Change direction
++                if (!external) {
++                    for (j=0; j<8; j++) {
++                        ndirection=(j+direction)%8;
++                        x2=x+rotr[ndirection];
++                        y2=y+rotc[ndirection];
++                        if (x2>=0 && y2>=0 && x2<nx && y2<ny) {
++                            if (image[x2+y2*nx]==k)  break;
++                        }
++                    }
++                    if (j!=8) {
++                        direction=dir[(x2-x+1)+3*(y2-y+1)];
++                        x=x2;
++                        y=y2;
++                    }            
++                }
++                else {
++                    moved = 0;
++                    while ((! moved)) {
++                        if (on_right(x,y,direction, image, k, nx)) {
++                            if (in_front(x,y,direction, image, k, nx)) {
++                                // turn left
++                                // sign issue when using the % (modulo)
++                                if (direction == 0)
++                                    direction = 3;
++                                else
++                                    direction--;
++                            }
++                            else {
++                                // go straight
++                                switch (direction) {
++                                case 0: y -= 1; break;
++                                case 1: x += 1; break;
++                                case 2: y += 1; break;
++                                case 3: x -= 1; break;
++                                }
++                                moved = 1;
++                            }
++                        }
++                        else {
++                            // turn right
++                            switch (direction) {
++                            case 0: x += 1; break;
++                            case 1: y += 1; break;
++                            case 2: x -= 1; break;
++                            case 3: y -= 1; break;
++                            }
++                            direction = (direction +1) % 4;
++                            moved = 1;
++                        }
++                    }
++                }
++            } while (x!=x0 || y!=y0);
++        }
+     
+-    // Copy octemp in an element of _res
+-    _oc=allocVector(INTSXP, nboc*2);
+-    SET_VECTOR_ELT(_res, k, _oc);
+-    memcpy(INTEGER(_oc), octemp, nboc*2*sizeof(int));
+-  } // k
++        // Copy octemp in an element of _res
++        _oc=allocVector(INTSXP, nboc*2);
++        SET_VECTOR_ELT(_res, k, _oc);
++        memcpy(INTEGER(_oc), octemp, nboc*2*sizeof(int));
++    } // k
+ 
+-  // Free oct
+-  R_Free(octemp);
++    // Free oct
++    R_Free(octemp);
++    if (external) {
++       image = NULL;
++       R_Free(padded_image);
++    }
+ 
+-  UNPROTECT (nprotect);
+-  return(_res);
++    UNPROTECT (nprotect);
++    return(_res);
+ }
+Index: EBImage/src/floodFill.cpp
+===================================================================
+--- EBImage/src/floodFill.cpp	(révision 1)
++++ EBImage/src/floodFill.cpp	(copie de travail)
+@@ -113,9 +113,9 @@
+   nprotect++;  
+ 
+   // assuming binary images: 0 is background and everything else foreground
+-  // foreground is converted here to -1.0
++  // foreground is negated
+   for (i=0; i<nz*size.x*size.y; i++) {
+-    if (REAL(res)[i]!=0.0) REAL(res)[i]=-1.0;
++    if (REAL(res)[i]!=0.0) REAL(res)[i]*=-1;
+   }
+   
+   // do the job over images
+@@ -124,7 +124,7 @@
+     index = 1.0;
+     for (ky=0; ky<size.y ; ky++) {
+       for (kx=0; kx<size.x ; kx++) {
+-	if (REAL(res)[kx + ky*size.x + i*size.x*size.y]==-1.0) {
++	if (REAL(res)[kx + ky*size.x + i*size.x*size.y] < 0) {
+ 	  pt.x = kx;
+ 	  pt.y = ky;
+ 	  _floodFill<double>(&(REAL(res)[i*size.x*size.y]), size, pt, index, 0.0);
+Index: EBImage/src/ocontour.h
+===================================================================
+--- EBImage/src/ocontour.h	(révision 1)
++++ EBImage/src/ocontour.h	(copie de travail)
+@@ -8,7 +8,7 @@
+ extern "C" {
+ #endif
+ 
+-SEXP ocontour (SEXP);
++    SEXP ocontour (SEXP,SEXP);
+ 
+ #ifdef __cplusplus
+ };
+Index: EBImage/src/filters_magick.c
+===================================================================
+--- EBImage/src/filters_magick.c	(révision 1)
++++ EBImage/src/filters_magick.c	(copie de travail)
+@@ -26,6 +26,15 @@
+ #define FLT_EQUALIZE    7
+ #define FLT_RESIZE      11
+ #define FLT_ROTATE      12
++#define FLT_STATISTIC_min   15
++#define FLT_STATISTIC_max   16
++#define FLT_STATISTIC_mean   17
++#define FLT_STATISTIC_median   18
++#define FLT_STATISTIC_gradient   19
++#define FLT_STATISTIC_mode   20
++#define FLT_STATISTIC_nonpeak   21
++#define FLT_STATISTIC_std   22
++	
+ 
+ /*----------------------------------------------------------------------- */
+ SEXP
+@@ -58,6 +67,38 @@
+             case FLT_GAUSSBLUR:
+                 image = GaussianBlurImage (image, par[0], par[1], &exception);
+                 break;
++            case FLT_STATISTIC_min:
++                image = StatisticImage(image,MinimumStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;
++            case FLT_STATISTIC_max:
++                image = StatisticImage(image,MaximumStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;
++            case FLT_STATISTIC_mean:
++                image = StatisticImage(image,MeanStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;                
++            case FLT_STATISTIC_median:
++                image = StatisticImage(image,MedianStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;
++            case FLT_STATISTIC_gradient:
++                image = StatisticImage(image,GradientStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;
++            case FLT_STATISTIC_mode:
++                image = StatisticImage(image,ModeStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;                
++            case FLT_STATISTIC_nonpeak:
++                image = StatisticImage(image,NonpeakStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;
++            case FLT_STATISTIC_std:
++                image = StatisticImage(image,StandardDeviationStatistic,
++                                       (size_t)(par[0]),(size_t)(par[1]),&exception);
++                break;                  
+             case FLT_EQUALIZE:
+                 EqualizeImage(image);
+                 image = CloneImage (image, 0, 0, 1, &exception);
+Index: EBImage/src/watershed.cpp
+===================================================================
+--- EBImage/src/watershed.cpp	(révision 1)
++++ EBImage/src/watershed.cpp	(copie de travail)
+@@ -10,7 +10,7 @@
+ #include <R_ext/Error.h>
+ 
+ /* list of STL, C++ */
+-#include <list>
++#include <deque>
+ 
+ #define BG 0.0
+ 
+@@ -18,8 +18,8 @@
+     int index, seed;
+ };
+ 
+-typedef std::list<int>     IntList;
+-typedef std::list<TheSeed> SeedList;
++typedef std::deque<int>     IntList;
++typedef std::deque<TheSeed> SeedList;
+ 
+ double check_multiple( double *, double *, int &, IntList &, SeedList &, double &, int &, int & );
+ 
+Index: EBImage/src/Makevars
+===================================================================
+--- EBImage/src/Makevars	(révision 1)
++++ EBImage/src/Makevars	(copie de travail)
+@@ -1,3 +1,3 @@
+-PKG_CFLAGS = -DUSE_GTK -DGLIB_GETTEXT -pthread -I/usr/include/gtk-2.0 -I/usr/lib64/gtk-2.0/include -I/usr/include/atk-1.0 -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/pango-1.0 -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/freetype2 -I/usr/include/libpng14   -Wall -I/usr/include/ImageMagick -fopenmp -I/usr/include/ImageMagick 
+-PKG_CXXFLAGS = -Wall -I/usr/include/ImageMagick -fopenmp -I/usr/include/ImageMagick 
+-PKG_LIBS = -pthread -lgtk-x11-2.0 -lgdk-x11-2.0 -latk-1.0 -lgio-2.0 -lpangoft2-1.0 -lpangocairo-1.0 -lgdk_pixbuf-2.0 -lm -lcairo -lpng14 -lpango-1.0 -lfreetype -lfontconfig -lgobject-2.0 -lgmodule-2.0 -lgthread-2.0 -lrt -lglib-2.0   -L/usr/lib64 -L/usr/lib64 -L/usr/lib64 -lMagickCore -llcms -ltiff -lfreetype -ljpeg -lfontconfig -lXext -lSM -lICE -lX11 -lXt -lbz2 -lz -lm  -lpthread -lltdl -L/usr/lib64 -lMagickWand -lMagickCore -llcms -ltiff -lfreetype -ljpeg -lfontconfig -lXext -lSM -lICE -lX11 -lXt -lbz2 -lz -lm  -lpthread -lltdl 
++PKG_CFLAGS = -DUSE_GTK -DGLIB_GETTEXT -pthread -I/usr/include/gtk-2.0 -I/usr/lib/gtk-2.0/include -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/pixman-1 -I/usr/include/atk-1.0 -I/usr/include/pango-1.0 -I/usr/include/gio-unix-2.0/ -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/usr/include/freetype2 -I/usr/include/libpng12   -Wall -I/usr/local/include/ImageMagick -fopenmp -I/usr/local/include/ImageMagick 
++PKG_CXXFLAGS = -Wall -I/usr/local/include/ImageMagick -fopenmp -I/usr/local/include/ImageMagick 
++PKG_LIBS = -pthread -L/usr/lib/x86_64-linux-gnu -lgtk-x11-2.0 -lgdk-x11-2.0 -latk-1.0 -lgio-2.0 -lpangoft2-1.0 -lpangocairo-1.0 -lgdk_pixbuf-2.0 -lm -lcairo -lpango-1.0 -lfreetype -lfontconfig -lgobject-2.0 -lgmodule-2.0 -lgthread-2.0 -lrt -lglib-2.0   -L/usr/local/lib -L/usr/local/lib -lMagickCore -llcms -ltiff -lfreetype -ljasper -ljpeg -llqr-1 -lglib-2.0 -lpng -ldjvulibre -lfftw3 -lfontconfig -lwmf -lwmflite -lXext -lXt -lSM -lICE -lX11 -lbz2 -pthread -lIlmImf -lz -lImath -lHalf -lIex -lIlmThread -pthread -lrsvg-2 -lgio-2.0 -lgdk_pixbuf-2.0 -lm -lcairo -lgobject-2.0 -lgmodule-2.0 -lpng12 -lgthread-2.0 -lrt -lglib-2.0 -lxml2 -lgvc -lgraph -lcdt -lz -lm  -lpthread -lltdl -L/usr/local/lib -lMagickWand -lMagickCore -llcms -ltiff -lfreetype -ljasper -ljpeg -llqr-1 -lglib-2.0 -lpng -ldjvulibre -lfftw3 -lfontconfig -lwmf -lwmflite -lXext -lXt -lSM -lICE -lX11 -lbz2 -pthread -lIlmImf -lz -lImath -lHalf -lIex -lIlmThread -pthread -lrsvg-2 -lgio-2.0 -lgdk_pixbuf-2.0 -lm -lcairo -lgobject-2.0 -lgmodule-2.0 -lpng12 -lgthread-2.0 -lrt -lglib-2.0 -lxml2 -lgvc -lgraph -lcdt -lz -lm  -lpthread -lltdl 
+Index: EBImage/src/EBImage.c
+===================================================================
+--- EBImage/src/EBImage.c	(révision 1)
++++ EBImage/src/EBImage.c	(copie de travail)
+@@ -80,7 +80,7 @@
+     {"lib_animate",        (DL_FUNC) &lib_animate,        1},
+     {"lib_filterMagick",   (DL_FUNC) &lib_filterMagick,   3},
+     {"translate",          (DL_FUNC) &translate,          2},
+-    {"lib_erode_dilate",   (DL_FUNC) &lib_erode_dilate,   3},
++    {"lib_erode_dilate",   (DL_FUNC) &lib_erode_dilate,   4},
+     {"thresh",             (DL_FUNC) &thresh,   2},
+     {"floodFill",          (DL_FUNC) &floodFill,      4},
+     {"fillHull",           (DL_FUNC) &fillHull,       1},
+@@ -94,7 +94,7 @@
+     {"tile",               (DL_FUNC) &tile,     3},
+     {"untile",             (DL_FUNC) &untile,         3},
+     {"stackObjects",       (DL_FUNC) &stackObjects,  5},
+-    {"ocontour",           (DL_FUNC) &ocontour,  1},
++    {"ocontour",           (DL_FUNC) &ocontour,  2},
+     {"lib_drawText",       (DL_FUNC) &lib_drawText,       5},
+     {"lib_basic_hull",     (DL_FUNC) &lib_basic_hull,     1},
+     {"lib_cmoments",       (DL_FUNC) &lib_cmoments,       2},
+@@ -105,6 +105,11 @@
+     {"zernike",            (DL_FUNC) &zernike,        5},
+     {"drawCircle",         (DL_FUNC) &drawCircle, 4},
+     {"affine",             (DL_FUNC) &affine, 2},
++    {"imageConvolve",         (DL_FUNC) &imageConvolve, 2},
++    {"imageReplace",         (DL_FUNC) &imageReplace, 3},
++    {"lib_drawPolyline",   (DL_FUNC) &lib_drawPolyline,       6},
++    {"separate",          (DL_FUNC) &separate, 2},
++    
+     /* add above all R-lib functions from common.h */
+     {NULL, NULL, 0}
+ };
+Index: EBImage/man/colorize.Rd
+===================================================================
+--- EBImage/man/colorize.Rd	(révision 0)
++++ EBImage/man/colorize.Rd	(révision 0)
+@@ -0,0 +1,35 @@
++\name{colorize}
++
++\alias{colorize}
++
++\title{Colormap}
++
++\description{
++  Apply a colormap to an image.
++}
++
++\usage{
++  colorize(img, colormap = "jet") 
++}
++
++\arguments{
++  \item{img}{A grayscale \code{Image} object or an array.}
++  
++  \item{colormap}{A character value for the colormap. Currently accepted
++  values are "jet" or "rainbow".}
++  
++}
++
++\value{
++  A color \code{Image} object or an array.
++}
++
++\author{
++  Kevin Keraudren, \email{kevin.keraudren10@imperial.ac.uk}
++}
++
++\examples{
++   x = readImage(system.file("images", "lena.gif", package="EBImage"))
++   if (interactive()) display(colorize(x))
++}
++
+Index: EBImage/man/EBImage.Rd
+===================================================================
+--- EBImage/man/EBImage.Rd	(révision 1)
++++ EBImage/man/EBImage.Rd	(copie de travail)
+@@ -33,6 +33,7 @@
+   \itemize{
+     \item \code{readImage}, \code{writeImage}
+     \item \code{display}, \code{animate}
++    \item \code{colorize}
+     \item \code{image}
+   }
+   
+@@ -53,7 +54,10 @@
+   Image enhancement, filtering
+   \itemize{
+     \item \code{normalize}
+-    \item \code{filter2}, \code{blur}, \code{gblur}
++    \item \code{filter2}, \code{imageConvolve}, \code{blur}, \code{gblur}
++    \item \code{maxFilter}, \code{minFilter}, \code{meanFilter},
++          \code{medianFilter}, \code{gradientFilter}, \code{nonpeakFilter},
++          \code{stdFilter}, \code{modeFilter}
+     \item \code{equalize}
+   }
+   
+@@ -79,7 +83,7 @@
+   
+   Drawing on images
+   \itemize{
+-    \item \code{drawfont}, \code{drawtext}, \code{drawCircle}
++    \item \code{drawfont}, \code{drawtext}, \code{drawCircle}, \code{drawPolyline}
+   }
+     
+   Features extraction
+Index: EBImage/man/imageConvolve.Rd
+===================================================================
+--- EBImage/man/imageConvolve.Rd	(révision 0)
++++ EBImage/man/imageConvolve.Rd	(révision 0)
+@@ -0,0 +1,62 @@
++\name{imageConvolve}
++
++\alias{imageConvolve}
++
++\title{2D Convolution Filter}
++
++\description{
++  Convolves an image with the given kernel.
++}
++
++\usage{
++  imageConvolve(x, filter)
++}
++
++\arguments{
++  \item{x}{An \code{Image} object or an array.}
++
++  \item{filter}{An \code{Image} object or an array, with odd spatial
++    dimensions. Must contain only one frame.}
++}
++
++\value{
++  An \code{Image} object or an array, containing the filtered version
++  of \code{x}.
++}
++
++\details{
++  Linear filtering is useful to perform low-pass filtering (to blur
++  images, remove noise...) and high-pass filtering (to detect
++  edges, sharpen images). The function \code{makeBrush} is useful to
++  generate filters.
++
++  Data is set to 0 around borders.
++  
++  If \code{x} contains multiple franes, the filter will be applied one each frame.
++  
++}
++
++\seealso{
++  \code{\link{makeBrush}}, \code{\link{convolve}}, \code{\link{blur}},\code{\link{minFilter}}, \code{\link{filter2}}
++}
++
++\author{Kevin Keraudren, \email{kevin.keraudren10@imperial.ac.uk}}
++
++\examples{
++  x = readImage(system.file("images", "lena-color.png", package="EBImage"))
++  if (interactive()) display(x, title='Lena')
++
++  # Sobel filter for edge detection
++  sobel = function( img ) {
++    data = c(1,0,-1,2,0,-2,1,0,-1)
++    kernelX = matrix(data, 3, 3, byrow = TRUE)
++    kernelY = matrix(data, 3, 3, byrow = FALSE)
++    x = imageConvolve(img, kernelX)
++    y = imageConvolve(img, kernelY)
++    return( sqrt(x^2 + y^2) )
++  }
++
++  y = sobel(x)
++  if (interactive()) display(normalize(y), title='Sobel lena')
++
++}
+Index: EBImage/man/ocontour.Rd
+===================================================================
+--- EBImage/man/ocontour.Rd	(révision 1)
++++ EBImage/man/ocontour.Rd	(copie de travail)
+@@ -8,15 +8,18 @@
+ }
+ 
+ \usage{
+-  ocontour(x)
++  ocontour(x, external=FALSE)
+ }
+ 
+ \arguments{
+   \item{x}{An \code{Image} object or an array, containing objects.
+     Only integer values are considered. Pixels of value 0 constitute
+     the background. Each object is a set of pixels with the same unique
+-    integer value. Objets are assumed connected.
+-  }
++    integer value. Objects are assumed connected.}
++
++  \item{external}{A logical indicating whether to return the internal or
++  external contour.}
++
+ }
+ 
+ \value{
+@@ -34,6 +37,9 @@
+   oc = ocontour(x)
+   plot(oc[[1]], type='l')
+   points(oc[[1]], col=2)
++  oc2 = ocontour(x,external=TRUE)
++  lines(oc2[[1]])
++  points(oc2[[1]], col=3)
+ }
+ 
+ 
+Index: EBImage/man/imageReplace.Rd
+===================================================================
+--- EBImage/man/imageReplace.Rd	(révision 0)
++++ EBImage/man/imageReplace.Rd	(révision 0)
+@@ -0,0 +1,58 @@
++\name{imageReplace}
++
++\alias{imageReplace}
++
++\title{Replace labels by values}
++
++\description{
++  Replaces labels in a mask by values from a list.
++}
++
++\usage{
++  imageReplace(x, colors, do.zero = FALSE) 
++}
++
++\arguments{
++  \item{x}{An \code{Image} object or an array containing object masks.
++    Object masks are sets of pixels with the same unique integer value.}
++    
++  \item{colors}{List of values that will replace the labels.}
++  
++  \item{do.zero}{Logical value indicating whether the first value in the
++    \code{colors} list stands for the label 0 or the label 1.}
++}
++
++\value{
++  An \code{Image} object or an array with the labels replaced by the
++  corresponding values.
++}
++
++
++\seealso{
++  \code{\link{colorize}}
++}
++
++\author{
++  Kevin Keraudren, \email{kevin.keraudren10@imperial.ac.uk}
++}
++
++\examples{
++  ## load cell nucleus images
++  x = readImage(system.file('images', 'nuclei.tif', package='EBImage'))
++  if (interactive()) display(x)
++
++  ## computes object mask
++  y = thresh(x, 10, 10, 0.05)
++  y = opening(y, makeBrush(5, shape='disc'))
++  mask = fillHull(bwlabel(y))
++  if (interactive()) display(mask, title='Cell nuclei')
++
++  ## moments
++  m = moments(mask, x)
++
++  img = imageReplace(mask[,,1],m[[1]][,'m.ecc'])
++  if (interactive()) display(colorize(img),
++      title='Nuclei colored by their eccentricity (red is high)')
++}
++
++
+Index: EBImage/man/morphology.Rd
+===================================================================
+--- EBImage/man/morphology.Rd	(révision 1)
++++ EBImage/man/morphology.Rd	(copie de travail)
+@@ -9,14 +9,14 @@
+ \title{Perform morphological operations on images}
+ 
+ \description{
+-  Functions to perform morphological operations on binary images.
++  Functions to perform morphological operations on binary or grayscale images.
+ }
+ 
+ \usage{
+-  dilate(x, kern)
+-  erode(x, kern)
+-  opening(x, kern)
+-  closing(x, kern)
++  dilate(x, kern, binary=TRUE)
++  erode(x, kern, binary=TRUE)
++  opening(x, kern, binary=TRUE)
++  closing(x, kern, binary=TRUE)
+ 
+   makeBrush(size, shape=c('box', 'disc', 'diamond', 'gaussian'), step=TRUE, sigma=0.3)
+ }
+@@ -32,7 +32,10 @@
+     pixels of value 0 are considered as background ones and other pixels as
+     foreground ones.}
+   
+-  \item{size}{A numeric containing the size of the brush, in pixels.}
++  \item{binary}{A logical indicating if it should perform binary or
++  grayscale morphological operations.}
++  
++  \item{size}{An odd numeric containing the size of the brush, in pixels.}
+   \item{shape}{A character vector indicating the shape of the brush. Can
+     be \code{box}, \code{disc}, \code{diamond} or \code{gaussian}. Default is
+     \code{box}.}
+@@ -80,10 +83,25 @@
+     if (interactive()) display(dilate(x, kern), title='Dilatation of x')
+ 
+     ## makeBrush 
+-    x = makeBrush(100, shape='diamond')
++    x = makeBrush(101, shape='diamond')
+     if (interactive()) display(x, title="makeBrush(100, shape='diamond')")
+-    x = makeBrush(100, shape='disc', step=FALSE)
++    x = makeBrush(101, shape='disc', step=FALSE)
+     if (interactive()) display(x, title="makeBrush(100, shape='disc', step=FALSE)")
+-    x = makeBrush(100, shape='gaussian', sigma=10)
++    x = makeBrush(101, shape='gaussian', sigma=10)
+     if (interactive()) display(2000*x, title="makeBrush(100, shape='gaussian', sigma=10)")
++
++    # Sobel filter for edge detection
++    sobel = function( img ) {
++      data = c(1,0,-1,2,0,-2,1,0,-1)
++      kernelX = matrix(data, 3, 3, byrow = TRUE)
++      kernelY = matrix(data, 3, 3, byrow = FALSE)
++      x = imageConvolve(img, kernelX)
++      y = imageConvolve(img, kernelY)
++      return( sqrt(x^2 + y^2) )
++    }
++
++    y = sobel(x)
++    y2 = closing(y,kern=makeBrush(3, shape='disc'),binary=FALSE)
++    if (interactive()) display(normalize(y), title='Sobel lena')
++    if (interactive()) display(normalize(y2), title='Closed Sobel lena')
+ }
+Index: EBImage/man/magickFilter.Rd
+===================================================================
+--- EBImage/man/magickFilter.Rd	(révision 0)
++++ EBImage/man/magickFilter.Rd	(révision 0)
+@@ -0,0 +1,91 @@
++\name{magickFilter}
++
++\alias{maxFilter}
++\alias{minFilter}
++\alias{meanFilter}
++\alias{medianFilter}
++\alias{gradientFilter}
++\alias{nonpeakFilter}
++\alias{stdFilter}
++\alias{modeFilter}
++
++
++\title{ImageMagick StatisticImage filters}
++
++\description{
++  ImageMagick StatisticImage filters: min, max, mean, median, gradient,
++  nonpeak, standard deviation, mode.
++}
++
++\usage{
++  minFilter(x,w=3,h=3)
++  maxFilter(x,w=3,h=3)
++  meanFilter(x,w=3,h=3)
++  medianFilter(x,w=3,h=3)
++  gradientFilter(x,w=3,h=3)
++  nonpeakFilter(x,w=3,h=3)
++  stdFilter(x,w=3,h=3)
++  modeFilter(x,w=3,h=3)
++
++}
++
++\arguments{
++  \item{x}{An \code{Image} object or an array.}
++  
++  \item{w}{A numeric value for the width of the pixel neighbourhood.}
++
++  \item{h}{A numeric value for the height of the pixel neighbourhood.}
++  
++}
++
++\value{
++  An \code{Image} object or an array, containing the filtered version
++  of \code{x}.
++}
++
++\details{
++  These filters only use a box window.
++}
++
++\seealso{
++  \code{filter2}
++}
++
++\references{
++    \emph{ImageMagick StatisticImage}: \url{http://www.imagemagick.org/api/effect.php#StatisticImage}.
++}
++
++\author{
++  Kevin Keraudren, \email{kevin.keraudren10@imperial.ac.uk}
++}
++
++\examples{
++   x = readImage(system.file("images", "lena.gif", package="EBImage"))
++   if (interactive()) display(x)
++
++   y = minFilter(x)
++   if (interactive()) display(y, title='minFilter')
++
++   y = maxFilter(x)
++   if (interactive()) display(y, title='maxFilter')
++
++   y = meanFilter(x)
++   if (interactive()) display(y, title='meanFilter')
++
++   y = medianFilter(x)
++   if (interactive()) display(y, title='medianFilter')
++
++   y = gradientFilter(x)
++   if (interactive()) display(y, title='gradientFilter')
++
++   y = nonpeakFilter(x)
++   if (interactive()) display(y, title='nonpeakFilter')
++
++   y = stdFilter(x)
++   if (interactive()) display(y, title='stdFilter')
++
++   y = modeFilter(x)
++   if (interactive()) display(y, title='modeFilter')
++
++}
++
+Index: EBImage/man/separate.Rd
+===================================================================
+--- EBImage/man/separate.Rd	(révision 0)
++++ EBImage/man/separate.Rd	(révision 0)
+@@ -0,0 +1,46 @@
++\name{separate}
++
++\alias{separate}
++
++\title{Separate touching objects}
++
++\description{
++  Functions to perform morphological erosion to separate touching objects.
++}
++
++\usage{
++  separate(x, kern = makeBrush(5, shape = "diamond")) 
++}
++
++\arguments{
++  \item{x}{An \code{Image} object or an array containing labelled regions.}
++  
++  \item{kern}{An \code{Image} object or an array, containing the
++    structuring element. \code{kern} is considered as a binary image, whose
++    pixels of value 0 are considered as background ones and other pixels as
++    foreground ones.}
++}
++
++\value{
++  Returns the
++  transformed \code{Image} object or array,  after separating the
++  touching objects.
++}
++
++\author{
++  Kevin Keraudren, \email{kevin.keraudren10@imperial.ac.uk}
++}
++
++\examples{
++  x = readImage(system.file('images', 'shapes.png', package='EBImage'))
++  x = x[110:512,1:130]
++  if (interactive()) display(x, title='Binary')
++  y = distmap(x)
++  if (interactive()) display(normalize(y), title='Distance map')
++  w = watershed(y)
++  if (interactive()) display(normalize(w), title='Watershed')	
++  z = separate(w)
++  if (interactive()) display(normalize(z), title='Separate')
++}
++
++
+Index: EBImage/man/drawPolyline.Rd
+===================================================================
+--- EBImage/man/drawPolyline.Rd	(révision 0)
++++ EBImage/man/drawPolyline.Rd	(révision 0)
+@@ -0,0 +1,62 @@
++\name{drawPolyline}
++
++\alias{drawPolyline}
++
++\title{Draw a polyline on an image.}
++
++\description{
++  Draw a polyline on an image (serie of segments).
++}
++
++\usage{
++  drawPolyline(img, xy, stroke.color = "white", stroke.width = 1, 
++    fill.color = "none", antialias = FALSE)
++}
++
++\arguments{
++\item{img}{An \code{Image} object or an array.}  
++\item{xy}{list of vectors of coordinates}
++  
++\item{stroke.color}{A numeric or a character string specifying the color
++  of the polyline.}
++
++\item{stroke.width}{A numeric specifying the width
++    of the polyline.}
++  
++\item{fill.color}{A numeric or a character string specifying the color
++  of to fill the area defined by the polyline. \code{"none"} stands for
++  no filling.}
++  
++\item{antialias}{A logical indicating whether to turn antialiasing on.}
++}
++
++\value{
++  An \code{Image} object or an array, containing the transformed version
++  of \code{img}.
++}
++
++\author{
++  Kevin Keraudren, 2011
++}
++
++\examples{
++
++img = readImage(system.file("images", "shapes.png", package="EBImage"))
++img = img[110:512,1:130]
++labels = bwlabel(img)
++oc = ocontour(labels)
++poly = list()
++for ( i in 1:max(labels) ) {
++  x = filter(oc[[i]][,1],rep(1,21)/21,method='convolution',circular=TRUE)
++  y = filter(oc[[i]][,2],rep(1,21)/21,method='convolution',circular=TRUE)
++  p = cbind(x,y)
++  p = rbind(p,p[1,])
++  poly[[i]] = p
++}
++output = rgbImage(red=img,green=img,blue=img)
++output = drawPolyline(output,poly,stroke.color='red')
++if (interactive()) display(output)
++
++}
++
++
+Index: EBImage/NAMESPACE
+===================================================================
+--- EBImage/NAMESPACE	(révision 1)
++++ EBImage/NAMESPACE	(copie de travail)
+@@ -30,7 +30,7 @@
+ export(thresh, bwlabel)
+ export(watershed, propagate)
+ export(ocontour)
+-export(paintObjects, rmObjects, reenumerate)
++export(paintObjects, rmObjects, reenumerate, separate)
+ 
+ ## statistics
+ export(median.Image, quantile.Image)
+@@ -40,6 +40,7 @@
+ export(normalize)
+ export(filter2)
+ export(blur, gblur)
++export(minFilter,maxFilter,meanFilter,medianFilter,gradientFilter,modeFilter,stdFilter,nonpeakFilter)
+ export(equalize)
+         
+ ## morphological operations
+@@ -57,7 +58,8 @@
+ 
+ ## drawables
+ export(drawfont, drawtext)
+-export(drawCircle)
++export(drawCircle, drawPolyline)
++export(colorize, imageConvolve, imageReplace)
+ 
+ ## features extraction
+ export(computeFeatures)
