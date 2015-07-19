@@ -5,7 +5,7 @@ USAGE
 -----
 
 Place your images into HECD1, ACTIN, DAPI subfolders in the folder
-input_images. Correspoinding images should have the same name.
+input_images. Corresponding images should have the same name.
 
 Modify parameters.R and double click on 'Run_segmentation.bat' to run the
 segmentation. Resulting segmentation should then appear in output_dir. Then
